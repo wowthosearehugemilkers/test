@@ -186,13 +186,4 @@ Pull requests are welcome! Please open an issue first to discuss what you'd like
 
 ## 📄 License
 
-[MIT](LICENSE)
-
----
-
-## 🙏 Acknowledgements
-
-- [Groq](https://groq.com) — blazing-fast LLM inference
-- [Meta AI](https://ai.meta.com) — Llama 4 Scout vision model
-- [Vercel](https://vercel.com) — serverless deployment platform
-- [Tailwind CSS](https://tailwindcss.com) — utility-first CSS framework
+© 2026 inder4018U — Personal and non-commercial use only. See [LICENSE](LICENSE) for details.
