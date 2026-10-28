@@ -42,6 +42,7 @@ export function useLiveClassifier({ enabled = true } = {}) {
 
   // ─── 1. LAZY LOAD TENSORFLOW.JS & MODEL ───────────────────────────
   useEffect(() => {
+    if (!enabled) return;
     if (source !== "tm") return;
 
     let isCancelled = false;
@@ -92,7 +93,7 @@ export function useLiveClassifier({ enabled = true } = {}) {
         }
       }
     };
-  }, [source]);
+  }, [source, enabled]);
 
   // ─── 2. INFERENCE LOOP (cadence ~250ms with frame-skipping) ───────
   const runPrediction = useCallback(async () => {

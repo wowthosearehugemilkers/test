@@ -11,6 +11,7 @@ import { useLiveClassifier } from "../hooks/useLiveClassifier.js";
 
 export default function LiveCamScreen({ onClose, onOpenPrep }) {
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarted, setCameraStarted] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [hasFallbackImage, setHasFallbackImage] = useState(false);
   const streamRef = useRef(null);
@@ -25,7 +26,8 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     availableMockClasses,
     gateResult,
     itemInfo,
-    isModelLoading
+    isModelLoading,
+    modelError
   } = useLiveClassifier({ enabled: cameraActive || hasFallbackImage || source === "mock" });
 
   // ─── CAMERA LIFECYCLE ─────────────────────────────────────────────
@@ -48,6 +50,9 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
       streamRef.current = stream;
 
       if (videoRef.current) {
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.setAttribute("webkit-playsinline", "true");
+        videoRef.current.muted = true;
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current.play().catch(() => {});
@@ -67,6 +72,11 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     }
   }, [videoRef]);
 
+  const handleUserStartCamera = useCallback(() => {
+    setCameraStarted(true);
+    startCamera();
+  }, [startCamera]);
+
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -75,15 +85,11 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     setCameraActive(false);
   }, []);
 
-  // Mount/unmount & visibility change handler (pauses camera when tab is backgrounded)
+  // Handle visibility changes and stop camera on unmount
   useEffect(() => {
-    startCamera();
-
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         stopCamera();
-      } else if (document.visibilityState === "visible") {
-        startCamera();
       }
     };
 
@@ -93,7 +99,7 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopCamera();
     };
-  }, [startCamera, stopCamera]);
+  }, [stopCamera]);
 
   // Handle image upload fallback
   const handleFileUpload = (e) => {
@@ -136,6 +142,42 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
           autoPlay
           className="w-full h-full object-cover"
         />
+
+        {/* User Tap Prompt to Start Camera (required for iOS Safari policy) */}
+        {!cameraStarted && source !== "mock" && !hasFallbackImage && !cameraError && (
+          <div
+            onClick={handleUserStartCamera}
+            className="absolute inset-0 z-40 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none"
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-3xl mb-4 animate-pulse">
+              📷
+            </div>
+            <h3 className="text-white text-lg font-bold mb-1">Live Camera Ready</h3>
+            <p className="text-white/60 text-xs max-w-xs mb-6 leading-relaxed">
+              Tap anywhere or click below to enable camera access for real-time item detection.
+            </p>
+            <button
+              type="button"
+              onClick={handleUserStartCamera}
+              className="py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center gap-2"
+            >
+              <span>▶</span> Enable Camera
+            </button>
+          </div>
+        )}
+
+        {/* Model Loading Fallback Notice */}
+        {modelError && (
+          <div className="absolute top-16 left-4 right-4 z-40 bg-amber-500/20 border border-amber-500/40 rounded-xl p-3 flex items-start gap-2.5 backdrop-blur-md shadow-lg">
+            <span className="text-amber-300 text-base flex-shrink-0 mt-0.5">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-200 text-xs font-semibold">Vision Model Notice</p>
+              <p className="text-amber-100/70 text-[11px] leading-snug">
+                Could not load live TensorFlow.js model ({modelError}). Live Cam has switched to Mock Mode so you can still test interactions.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Camera Permission / Error Banner */}
         {cameraError && (

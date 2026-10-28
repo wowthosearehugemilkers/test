@@ -88,20 +88,3 @@ export function getLiveItemInfo(tmClass) {
   };
 }
 
-// Log model labels to console on load and warn about unmapped labels
-if (typeof window !== "undefined") {
-  fetch("/tm-model/metadata.json")
-    .then((res) => res.json())
-    .then((meta) => {
-      const labels = meta.labels || [];
-      console.log("[LiveCam] Loaded model labels from metadata.json:", labels);
-      for (const label of labels) {
-        if (!LIVE_CLASS_CONFIG[label]) {
-          console.warn(`[LiveCam] Unmapped model label detected in metadata: "${label}".`);
-        }
-      }
-    })
-    .catch((err) => {
-      console.warn("[LiveCam] Could not verify /tm-model/metadata.json labels:", err);
-    });
-}

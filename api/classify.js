@@ -1,3 +1,7 @@
+export const config = {
+  maxDuration: 60,
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -25,7 +29,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'qwen/qwen3.8-27b',
-        max_tokens: 300,
+        max_tokens: 600,
+        reasoning_effort: 'low',
+        reasoning_format: 'parsed',
         messages: [
           {
             role: 'user',

@@ -6,18 +6,21 @@
  * Uses a pure useReducer state machine and hooks/usePrepScanner.
  */
 
-import { useReducer, useEffect, useState } from "react";
+import { useReducer, useEffect, useState, lazy, Suspense } from "react";
 import { usePrepScanner } from "./hooks/usePrepScanner.js";
 import PrepBench from "./components/PrepBench.jsx";
 import BinTray from "./components/BinTray.jsx";
 import ConsequenceStrip from "./components/ConsequenceStrip.jsx";
-import LiveCamScreen from "./live/LiveCamScreen.jsx";
+import ErrorBoundary from "../../components/ErrorBoundary.jsx";
 import {
   initItem,
   getAvailableActions,
   applyAction,
   evaluateOutcome
 } from "./engine/index.js";
+
+const LiveCamScreen = lazy(() => import("./live/LiveCamScreen.jsx"));
+
 
 const TOTAL_SESSION_ITEMS = 3;
 
@@ -383,10 +386,25 @@ export default function PrepPage({ onBack }) {
 
       {/* Full-Screen Real-Time Live Cam */}
       {showLiveCam && (
-        <LiveCamScreen
-          onClose={() => setShowLiveCam(false)}
-          onOpenPrep={handleOpenPrepFromLiveCam}
-        />
+        <ErrorBoundary
+          title="Camera View Encountered an Issue"
+          message="Could not start the Live Cam scanner. You can switch back to the Prep Bench."
+          onReset={() => setShowLiveCam(false)}
+        >
+          <Suspense
+            fallback={
+              <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center text-white gap-3 select-none">
+                <div className="w-10 h-10 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-emerald-200">Launching Live Cam...</span>
+              </div>
+            }
+          >
+            <LiveCamScreen
+              onClose={() => setShowLiveCam(false)}
+              onOpenPrep={handleOpenPrepFromLiveCam}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </div>
   );

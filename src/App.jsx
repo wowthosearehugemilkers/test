@@ -1,8 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import { WASTE_CATEGORIES as WASTE_DATA } from "./data/wasteCategories.js";
 import { normalizeClassifierResult } from "./services/classifierAdapter.js";
 import { useEcoStats } from "./hooks/useEcoStats.js";
-import PrepPage from "./features/prep/PrepPage.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+
+const PrepPage = lazy(() => import("./features/prep/PrepPage.jsx"));
+
 
 async function compressImage(file, maxSizeKB = 800) {
   return new Promise((resolve) => {
@@ -676,7 +679,22 @@ export default function App() {
           )}
 
           {page === "prep" && (
-            <PrepPage onBack={() => setPage("home")} />
+            <ErrorBoundary
+              title="Prep Lab Encountered an Issue"
+              message="Could not load the interactive prep bench. Tap Return to go back to Home."
+              onReset={() => setPage("home")}
+            >
+              <Suspense
+                fallback={
+                  <div className="flex flex-col items-center justify-center min-h-[300px] text-emerald-300 text-sm gap-3">
+                    <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                    <span>Loading Prep Lab...</span>
+                  </div>
+                }
+              >
+                <PrepPage onBack={() => setPage("home")} />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </main>
 
