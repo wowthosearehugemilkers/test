@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createConfidenceGate } from "../engine/confidenceGate.js";
-import { getLiveItemInfo, LIVE_CLASS_CONFIG } from "../live/liveClassMap.js";
+import { getLiveItemInfo, getLiveItemInfoFromGroq, LIVE_CLASS_CONFIG } from "../live/liveClassMap.js";
 
 const PREDICTION_INTERVAL_MS = 250;
 
@@ -17,19 +17,23 @@ export function useLiveClassifier({ enabled = true } = {}) {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("mock") === "1") return "mock";
+      if (params.get("groq") === "1") return "groq";
     }
-    return "tm";
+    return "groq"; // Default to high-accuracy Groq Vision AI with instant switch to TM
   });
 
   const [mockClass, setMockClass] = useState("Plastic");
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [modelError, setModelError] = useState(null);
   const [labels, setLabels] = useState(() => Object.keys(LIVE_CLASS_CONFIG));
+  const [isGroqScanning, setIsGroqScanning] = useState(false);
+  const [groqError, setGroqError] = useState(null);
+  const [groqItemInfo, setGroqItemInfo] = useState(null);
   const [gateResult, setGateResult] = useState({
     status: "idle",
     confirmedClass: null,
     confidence: 0,
-    message: "Show me an item"
+    message: "Point at waste item"
   });
 
   const videoRef = useRef(null);
@@ -208,13 +212,88 @@ export function useLiveClassifier({ enabled = true } = {}) {
     };
   }, [enabled, source, runPrediction]);
 
-  // Reset gate when source or mock class changes
+  // ─── 3. GROQ VISION FRAME ANALYSIS ───────────────────────────────
+  const scanFrameWithGroq = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setGroqError("Camera not ready yet. Please hold camera steady.");
+      return;
+    }
+
+    setIsGroqScanning(true);
+    setGroqError(null);
+
+    try {
+      const canvas = document.createElement("canvas");
+      // Scale down slightly for optimal Groq upload speed (max 720px width)
+      const targetWidth = Math.min(video.videoWidth, 720);
+      const targetHeight = Math.round((targetWidth / video.videoWidth) * video.videoHeight);
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const base64 = dataUrl.split(",")[1];
+
+      const resp = await fetch("/api/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: base64,
+          mimeType: "image/jpeg"
+        })
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Classification error (${resp.status}): ${errText}`);
+      }
+
+      const result = await resp.json();
+      const info = getLiveItemInfoFromGroq(result);
+      setGroqItemInfo(info);
+
+      setGateResult({
+        status: "locked",
+        confirmedClass: info.displayName,
+        confidence: (result.confidence || 92) / 100,
+        message: `Groq AI: ${info.displayName}`
+      });
+    } catch (err) {
+      console.warn("[LiveClassifier] Groq frame analysis failed:", err);
+      setGroqError(err.message || "Failed to analyze frame");
+    } finally {
+      setIsGroqScanning(false);
+    }
+  }, []);
+
+  // Reset state when switching between Groq, TM, and Mock
   useEffect(() => {
     gate.reset();
+    setGroqError(null);
+    if (source === "groq") {
+      setGateResult({
+        status: "idle",
+        confirmedClass: null,
+        confidence: 0,
+        message: "Point at item and tap Scan with Groq"
+      });
+      setGroqItemInfo(null);
+    } else if (source === "tm") {
+      setGateResult({
+        status: "idle",
+        confirmedClass: null,
+        confidence: 0,
+        message: "Show me an item"
+      });
+    }
   }, [source, mockClass, gate]);
 
   const activeConfirmedClass = gateResult.status === "locked" ? gateResult.confirmedClass : null;
-  const itemInfo = activeConfirmedClass ? getLiveItemInfo(activeConfirmedClass) : null;
+  const itemInfo = source === "groq"
+    ? groqItemInfo
+    : (activeConfirmedClass ? getLiveItemInfo(activeConfirmedClass) : null);
 
   return {
     videoRef,
@@ -226,6 +305,9 @@ export function useLiveClassifier({ enabled = true } = {}) {
     gateResult,
     itemInfo,
     isModelLoading,
-    modelError
+    modelError,
+    scanFrameWithGroq,
+    isGroqScanning,
+    groqError
   };
 }

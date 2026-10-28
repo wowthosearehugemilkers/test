@@ -27,7 +27,10 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     gateResult,
     itemInfo,
     isModelLoading,
-    modelError
+    modelError,
+    scanFrameWithGroq,
+    isGroqScanning,
+    groqError
   } = useLiveClassifier({ enabled: cameraActive || hasFallbackImage });
 
   // ─── CAMERA LIFECYCLE ─────────────────────────────────────────────
@@ -261,25 +264,33 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
               <span>✕</span> Close
             </button>
 
-            {/* Mock Mode Selector */}
+            {/* Mode / Engine Selector */}
             <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-xl">
-              <span className="text-white/40 text-[10px] font-semibold uppercase">Mode:</span>
+              <span className="text-white/40 text-[10px] font-semibold uppercase">Engine:</span>
               <select
-                value={source === "mock" ? mockClass : "tm"}
+                value={source === "mock" ? `mock:${mockClass}` : source}
                 onChange={(e) => {
-                  if (e.target.value === "tm") {
+                  const val = e.target.value;
+                  if (val === "groq") {
+                    setSource("groq");
+                  } else if (val === "tm") {
                     setSource("tm");
-                  } else {
+                  } else if (val.startsWith("mock:")) {
                     setSource("mock");
-                    setMockClass(e.target.value);
+                    setMockClass(val.replace("mock:", ""));
                   }
                 }}
                 className="bg-transparent text-emerald-300 text-xs font-bold outline-none cursor-pointer"
               >
-                <option value="tm" className="bg-neutral-900 text-white">Live AI Model</option>
-                <optgroup label="Simulated Classes" className="bg-neutral-900 text-white/70">
+                <option value="groq" className="bg-neutral-900 text-white">
+                  ⚡ Groq Cloud AI (High Accuracy)
+                </option>
+                <option value="tm" className="bg-neutral-900 text-white">
+                  🧠 Teachable Machine (Local)
+                </option>
+                <optgroup label="Simulated Items" className="bg-neutral-900 text-white/70">
                   {availableMockClasses.map((cls) => (
-                    <option key={cls} value={cls} className="bg-neutral-900 text-white">
+                    <option key={cls} value={`mock:${cls}`} className="bg-neutral-900 text-white">
                       Mock: {cls}
                     </option>
                   ))}
@@ -295,11 +306,28 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
                 <span className="w-3 h-3 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
                 <span>Loading Vision Model...</span>
               </div>
+            ) : isGroqScanning ? (
+              <div className="px-4 py-2 rounded-full bg-teal-500/20 backdrop-blur-md border border-teal-500/40 text-teal-200 text-xs font-medium flex items-center gap-2 animate-pulse">
+                <span className="w-3 h-3 rounded-full border-2 border-teal-300 border-t-transparent animate-spin" />
+                <span>Analyzing frame with Groq AI...</span>
+              </div>
             ) : isLocked ? (
               <div className="w-full max-w-xs px-4 py-3 rounded-2xl bg-black/75 backdrop-blur-md border border-emerald-500/40 shadow-xl shadow-emerald-500/10 flex flex-col items-center animate-fadeIn">
-                <span className="text-white font-bold text-base tracking-tight text-center">
-                  {itemInfo.displayName}
-                </span>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  {source === "groq" && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                      GROQ AI
+                    </span>
+                  )}
+                  {source === "tm" && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      TM MODEL
+                    </span>
+                  )}
+                  <span className="text-white font-bold text-base tracking-tight text-center">
+                    {itemInfo.displayName}
+                  </span>
+                </div>
 
                 {/* Confidence Bar */}
                 <div className="w-full mt-2 flex items-center gap-2">
@@ -319,6 +347,11 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
                 <span>⚠️</span>
                 <span>Not sure, move closer or change angle</span>
               </div>
+            ) : source === "groq" ? (
+              <div className="px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-teal-500/30 text-teal-300 text-xs font-medium flex items-center gap-1.5 animate-fadeIn">
+                <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                <span>Aim camera at item & tap Snap</span>
+              </div>
             ) : (
               <div className="px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-white/70 text-xs font-medium flex items-center gap-1.5 animate-fadeIn">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -329,6 +362,13 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
 
           {/* Bottom Area: Action Button + Info Cards */}
           <div className="w-full flex flex-col gap-2.5 pointer-events-auto">
+            {/* Groq Error Banner if any */}
+            {groqError && (
+              <div className="px-3.5 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-xs text-center backdrop-blur-md shadow-lg">
+                ⚠️ {groqError}
+              </div>
+            )}
+
             {/* "Prep It" Button (Shown ONLY when class maps to a prep item) */}
             {isLocked && itemInfo?.canPrep && (
               <button
@@ -337,10 +377,32 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
                   stopCamera();
                   onOpenPrep(itemInfo.itemId);
                 }}
-                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-500/90 hover:bg-emerald-400 active:scale-95 text-black font-extrabold text-sm tracking-wide shadow-2xl shadow-emerald-500/40 flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 active:scale-95 text-black font-black text-sm tracking-wide shadow-2xl shadow-emerald-500/40 flex items-center justify-center gap-2 transition-all"
               >
                 <span>🧼</span>
                 <span>Prep This {itemInfo.displayName.split(" ")[0]} Now ➔</span>
+              </button>
+            )}
+
+            {/* Groq Snap / Analyze Shutter Button */}
+            {source === "groq" && (
+              <button
+                type="button"
+                disabled={isGroqScanning || (!cameraActive && !hasFallbackImage)}
+                onClick={scanFrameWithGroq}
+                className="w-full py-3.5 px-4 rounded-2xl bg-teal-500/90 hover:bg-teal-400 active:scale-95 text-black font-extrabold text-sm tracking-wide shadow-xl shadow-teal-500/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {isGroqScanning ? (
+                  <>
+                    <span className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
+                    <span>Analyzing Frame with Groq AI...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡</span>
+                    <span>{isLocked ? "Snap Again with Groq AI" : "Snap & Analyze with Groq AI"}</span>
+                  </>
+                )}
               </button>
             )}
 

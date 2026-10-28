@@ -88,3 +88,57 @@ export function getLiveItemInfo(tmClass) {
   };
 }
 
+/**
+ * Resolves complete domain, category, and prep item info from a Groq Vision result.
+ * 
+ * @param {object} groqResult { itemName, wasteType, confidence, reason }
+ * @returns {object}
+ */
+export function getLiveItemInfoFromGroq(groqResult = {}) {
+  const wasteType = (groqResult.wasteType || "hazardous").toLowerCase();
+  const itemName = groqResult.itemName || "Waste Item";
+  const categoryData = getCategoryData(wasteType);
+
+  // Map to prep item ID if applicable
+  let itemId = null;
+  const lowerName = itemName.toLowerCase();
+  if (wasteType === "glass" || lowerName.includes("glass") || lowerName.includes("jar")) {
+    itemId = "glass_jar";
+  } else if (wasteType === "plastic" || lowerName.includes("plastic") || lowerName.includes("bottle")) {
+    itemId = "plastic_bottle";
+  } else if (wasteType === "paper" || lowerName.includes("pizza") || lowerName.includes("box") || lowerName.includes("cardboard")) {
+    itemId = "pizza_box";
+  }
+
+  const co2Factor = categoryData.impactFactors?.co2SavedKg;
+  let carbonText = null;
+  let hasNumericEstimate = false;
+
+  if (typeof co2Factor === "number" && co2Factor > 0) {
+    carbonText = `~${co2Factor.toFixed(2)} kg CO₂`;
+    hasNumericEstimate = true;
+  } else if (categoryData.fact) {
+    carbonText = categoryData.fact;
+  } else if (categoryData.learnMore?.impact) {
+    carbonText = categoryData.learnMore.impact;
+  } else {
+    carbonText = "No estimate for this item";
+  }
+
+  return {
+    rawClass: itemName,
+    displayName: itemName,
+    itemId,
+    canPrep: Boolean(itemId),
+    categoryId: wasteType,
+    categoryData,
+    binColor: categoryData.binColor || "Blue",
+    binDisposal: categoryData.disposal || "Recycling Bin",
+    tip: groqResult.reason || categoryData.tips?.[0] || categoryData.disposal || "Check local guidance.",
+    carbonText,
+    hasNumericEstimate,
+    reason: groqResult.reason || ""
+  };
+}
+
+
