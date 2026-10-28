@@ -58,10 +58,16 @@ export default class ErrorBoundary extends React.Component {
               {this.props.title || "Something went wrong"}
             </h2>
 
-            <p className="text-white/60 text-xs mb-6 leading-relaxed max-w-xs">
+            <p className="text-white/60 text-xs mb-3 leading-relaxed max-w-xs">
               {this.props.message ||
                 "An unexpected display issue occurred. Don't worry — your data is safe."}
             </p>
+
+            {this.state.error && (
+              <div className="mb-5 p-2.5 rounded-xl bg-black/60 border border-amber-500/40 text-amber-200 font-mono text-[11px] text-left max-w-xs break-all shadow-inner">
+                {String(this.state.error?.message || this.state.error)}
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-2.5 w-full">
               <button
