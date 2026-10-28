@@ -387,9 +387,42 @@ export default function PrepPage({ onBack }) {
       {/* Full-Screen Real-Time Live Cam */}
       {showLiveCam && (
         <ErrorBoundary
-          title="Camera View Encountered an Issue"
-          message="Could not start the Live Cam scanner. You can switch back to the Prep Bench."
-          onReset={() => setShowLiveCam(false)}
+          fallback={({ error, reset }) => (
+            <div className="fixed inset-0 z-50 bg-[#052e16] flex flex-col items-center justify-center p-6 text-center select-none text-white">
+              <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl shadow-2xl flex flex-col items-center">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-2xl mb-4">
+                  📷
+                </div>
+                <h2 className="text-white text-lg font-bold mb-2">Camera Scanner Notice</h2>
+                <p className="text-white/60 text-xs mb-6 max-w-xs leading-relaxed">
+                  {error?.message || "Could not launch live camera feed on this device."}
+                </p>
+                <div className="flex flex-col gap-2.5 w-full">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      reset();
+                      setShowLiveCam(false);
+                      setTimeout(() => setShowLiveCam(true), 50);
+                    }}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-xs active:scale-95 transition-all shadow-lg"
+                  >
+                    🔄 Try Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      reset();
+                      setShowLiveCam(false);
+                    }}
+                    className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs active:scale-95 transition-all"
+                  >
+                    ← Return to Decontamination Lab
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         >
           <Suspense
             fallback={

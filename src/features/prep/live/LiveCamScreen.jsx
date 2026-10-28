@@ -15,6 +15,7 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
   const [hasFallbackImage, setHasFallbackImage] = useState(false);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const isStartingRef = useRef(false);
 
   const {
     videoRef,
@@ -31,7 +32,10 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
 
   // ─── CAMERA LIFECYCLE ─────────────────────────────────────────────
   const startCamera = useCallback(async () => {
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
     setCameraError(null);
+
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -39,7 +43,7 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
       }
 
       if (!navigator?.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API not accessible in this browser (requires HTTPS).");
+        throw new Error("Camera API not accessible (requires HTTPS and supported browser).");
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -61,7 +65,7 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
           await video.play();
           setCameraActive(true);
         } catch (playErr) {
-          console.warn("[LiveCam] Direct video.play() failed:", playErr);
+          console.warn("[LiveCam] Direct video.play() note:", playErr);
         }
 
         // Additional listener safety for mobile browsers
@@ -79,6 +83,8 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
         setCameraError(`Unable to start camera: ${err.message || "Unknown error"}.`);
       }
       setCameraActive(false);
+    } finally {
+      isStartingRef.current = false;
     }
   }, [videoRef]);
 
@@ -90,22 +96,11 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     setCameraActive(false);
   }, []);
 
-  // Mount/unmount & visibility change handler: auto-starts on mount, stops when hidden
+  // Mount/unmount: starts camera once on mount, cleans up tracks on unmount
   useEffect(() => {
     startCamera();
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        stopCamera();
-      } else if (document.visibilityState === "visible") {
-        startCamera();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopCamera();
     };
   }, [startCamera, stopCamera]);
