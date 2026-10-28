@@ -1,0 +1,96 @@
+{
+  "id": "plastic_bottle",
+  "title": "Plastic Bottle",
+  "tmClass": "Plastic Bottle",
+  "parts": [
+    {
+      "id": "body",
+      "name": "Bottle Body",
+      "material": "PET #1 (Polyethylene Terephthalate)"
+    },
+    {
+      "id": "cap",
+      "name": "Bottle Cap",
+      "material": "PP #5 (Polypropylene)"
+    },
+    {
+      "id": "contents",
+      "name": "Liquid Contents",
+      "material": "Liquid Residue"
+    }
+  ],
+  "initialParts": {
+    "body": "intact",
+    "cap": "attached",
+    "contents": "residue"
+  },
+  "actions": [
+    {
+      "id": "rinse_empty",
+      "label": "Rinse & Empty Bottle",
+      "targetPart": "contents",
+      "requires": {
+        "contents": "residue"
+      },
+      "set": {
+        "contents": "empty"
+      },
+      "feedback": "Bottle rinsed and emptied. Eliminates liquid residue that contaminates paper bales and sorting equipment.",
+      "required": true,
+      "informational": false
+    },
+    {
+      "id": "remove_cap",
+      "label": "Remove Bottle Cap",
+      "targetPart": "cap",
+      "requires": {
+        "cap": "attached"
+      },
+      "set": {
+        "cap": "removed"
+      },
+      "feedback": "Cap separated. Note: Rules differ by area—some facilities ask you to keep caps screwed on tightly so they do not fall through sorting screens, while others ask for separate collection.",
+      "required": false,
+      "informational": true
+    }
+  ],
+  "outcomes": [
+    {
+      "bin": "recycling",
+      "when": {
+        "contents": "empty"
+      },
+      "result": "accepted",
+      "title": "Plastic Recycling Accepted",
+      "text": "Clean, empty PET bottles are accepted in the Blue Recycling Bin for high-grade bottle-to-bottle reprocessing.",
+      "takeaway": "Always rinse and empty beverage containers before recycling."
+    },
+    {
+      "bin": "recycling",
+      "when": {
+        "contents": "residue"
+      },
+      "result": "contaminated",
+      "title": "Recycling Stream Contaminated",
+      "text": "Residual liquids spill onto dry paper and cardboard in collection trucks, ruining recyclable paper fibers and attracting pests at the MRF.",
+      "takeaway": "Unrinsed containers can cause entire truckloads of dry recyclables to be rejected."
+    },
+    {
+      "bin": "general",
+      "when": null,
+      "result": "wasted",
+      "title": "Recyclable Resource Landfilled",
+      "text": "PET plastic takes over 400 years to decompose in landfills, releasing microplastics and wasting valuable recyclable polymers.",
+      "takeaway": "Rinsing and placing in the Blue Recycling Bin saves energy and landfill space."
+    },
+    {
+      "bin": "compost",
+      "when": null,
+      "result": "wasted",
+      "title": "Compost Contamination",
+      "text": "Petroleum-derived PET plastics do not biodegrade in compost and contaminate organic compost batches with non-degradable fragments.",
+      "takeaway": "Never place plastics in green organic compost bins."
+    }
+  ],
+  "guidanceNote": "Consistent with app guidance: Rinse & place in Blue Recycling Bin. Cap action is informational and never penalized."
+}

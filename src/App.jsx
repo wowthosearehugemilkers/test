@@ -1,122 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-
-// ─── MOCK AI CLASSIFIER ─────────────────────────────────────────────────────
-const WASTE_DATA = {
-  organic: {
-    label: "Organic Waste",
-    emoji: "🌿",
-    category: "Wet Waste",
-    color: "#2ECC71",
-    bg: "from-emerald-900/60 to-green-800/40",
-    badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    glow: "shadow-emerald-500/20",
-    ring: "#2ECC71",
-    disposal: "Dispose in the Green Compost Bin",
-    fact: "Composting organic waste reduces landfill methane emissions by up to 50%.",
-    mapsQuery: "composting facility near me",
-    learnMore: {
-      what: "Organic waste includes food scraps, yard trimmings, and biodegradable materials that decompose naturally.",
-      impact: "When sent to landfills, organic waste produces methane — a greenhouse gas 25× more potent than CO₂.",
-      disposal: "Use green bins for collection, or home-compost to create rich soil amendments.",
-      benefit: "Composting returns nutrients to soil, reduces fertilizer needs, and cuts waste costs."
-    }
-  },
-  plastic: {
-    label: "Plastic Waste",
-    emoji: "♻️",
-    category: "Dry / Recyclable",
-    color: "#3498DB",
-    bg: "from-blue-900/60 to-sky-800/40",
-    badge: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    glow: "shadow-blue-500/20",
-    ring: "#3498DB",
-    disposal: "Rinse & place in Blue Recycling Bin",
-    fact: "Only 9% of all plastic ever produced has been recycled globally.",
-    mapsQuery: "plastic recycling center near me",
-    learnMore: {
-      what: "Plastic waste includes bottles, bags, packaging, and synthetic materials that take 400–1000 years to degrade.",
-      impact: "Plastics contaminate oceans, harm wildlife, and release toxic chemicals as they break down into microplastics.",
-      disposal: "Rinse containers, check resin codes (1–7), and place in designated recycling bins.",
-      benefit: "Recycling 1 ton of plastic saves 7.4 cubic yards of landfill space and 16.3 barrels of oil."
-    }
-  },
-  glass: {
-    label: "Glass Waste",
-    emoji: "🔵",
-    category: "Recyclable",
-    color: "#00BCD4",
-    bg: "from-cyan-900/60 to-teal-800/40",
-    badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-    glow: "shadow-cyan-500/20",
-    ring: "#00BCD4",
-    disposal: "Place in Cyan Glass Recycling Bin",
-    fact: "Glass can be recycled endlessly without any loss in quality or purity.",
-    mapsQuery: "glass recycling drop off near me",
-    learnMore: {
-      what: "Glass waste includes bottles, jars, and broken glassware made from silica sand melted at high temperatures.",
-      impact: "Glass takes over 1 million years to decompose in a landfill, and produces toxic fumes if incinerated.",
-      disposal: "Separate by color (clear, green, brown), rinse, and drop at glass collection points.",
-      benefit: "Recycling glass reduces energy use by 30% and cuts CO₂ emissions significantly."
-    }
-  },
-  metal: {
-    label: "Metal / E-Waste",
-    emoji: "⚙️",
-    category: "Hazardous / Recyclable",
-    color: "#FF5722",
-    bg: "from-orange-900/60 to-red-900/40",
-    badge: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-    glow: "shadow-orange-500/20",
-    ring: "#FF5722",
-    disposal: "Drop at certified E-Waste collection center",
-    fact: "A ton of e-waste contains more gold than a ton of gold ore.",
-    mapsQuery: "e-waste recycling center near me",
-    learnMore: {
-      what: "E-waste includes electronics, batteries, circuit boards, and metal components with hazardous materials.",
-      impact: "Improper disposal leaches lead, mercury, and cadmium into soil and groundwater.",
-      disposal: "Never bin e-waste. Take to certified collection centers or manufacturer take-back programs.",
-      benefit: "Recovering metals from e-waste uses 95% less energy than mining virgin materials."
-    }
-  },
-  paper: {
-    label: "Paper Waste",
-    emoji: "📄",
-    category: "Dry / Recyclable",
-    color: "#8BC34A",
-    bg: "from-lime-900/60 to-green-900/40",
-    badge: "bg-lime-500/20 text-lime-300 border-lime-500/30",
-    glow: "shadow-lime-500/20",
-    ring: "#8BC34A",
-    disposal: "Bundle & place in Paper Recycling Bin",
-    fact: "Recycling 1 ton of paper saves 17 trees and 7,000 gallons of water.",
-    mapsQuery: "paper recycling near me",
-    learnMore: {
-      what: "Paper waste includes newspapers, cardboard, office paper, and packaging materials made from wood pulp.",
-      impact: "Paper production is the 3rd largest industrial polluter, consuming vast water and chemical resources.",
-      disposal: "Keep paper dry, remove tape/staples, and flatten cardboard before recycling.",
-      benefit: "Paper can be recycled 5–7 times before fibers become too short, saving forests globally."
-    }
-  },
-  hazardous: {
-    label: "Hazardous Waste",
-    emoji: "⚠️",
-    category: "Hazardous",
-    color: "#E53935",
-    bg: "from-red-950/70 to-rose-900/40",
-    badge: "bg-red-500/20 text-red-300 border-red-500/30",
-    glow: "shadow-red-500/20",
-    ring: "#E53935",
-    disposal: "Take to Hazardous Waste Facility ONLY",
-    fact: "Improper disposal of hazardous waste can contaminate groundwater for decades.",
-    mapsQuery: "hazardous waste disposal facility near me",
-    learnMore: {
-      what: "Hazardous waste includes chemicals, batteries, paints, pesticides, and medical waste with toxic properties.",
-      impact: "Can cause severe environmental contamination, health issues, and long-term ecosystem damage.",
-      disposal: "Never pour down drains. Use municipal hazardous waste collection events or certified facilities.",
-      benefit: "Proper disposal prevents billions in environmental cleanup costs and protects public health."
-    }
-  }
-};
+import { WASTE_CATEGORIES as WASTE_DATA } from "./data/wasteCategories.js";
+import { normalizeClassifierResult } from "./services/classifierAdapter.js";
+import { useEcoStats } from "./hooks/useEcoStats.js";
 
 async function compressImage(file, maxSizeKB = 800) {
   return new Promise((resolve) => {
@@ -176,7 +61,7 @@ async function classifyWithAI(file, onStatus) {
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.error || 'Classification failed');
 
-  return { type: data.wasteType, confidence: data.confidence, rawLabel: data.rawLabel, itemName: data.itemName, isScreenshot: data.isScreenshot, reason: data.reason };
+  return normalizeClassifierResult(data);
 }
 
 // ─── SCAN ANIMATION ──────────────────────────────────────────────────────────
@@ -638,13 +523,17 @@ function ResourcesPage({ onBack }) {
 }
 
 // ─── STATS BAR ───────────────────────────────────────────────────────────────
-function StatsBar({ count }) {
+function StatsBar({ count, stats }) {
+  const displayCount = stats ? stats.todayScans : (count || 0);
+  const displayCo2 = stats ? `${stats.co2SavedKg}kg` : `${((count || 0) * 0.3).toFixed(1)}kg`;
+  const displayStreak = stats ? `${stats.streakDays}d` : `${Math.min(count || 0, 7)}d`;
+
   return (
     <div className="flex justify-between items-center py-3 px-4 rounded-xl bg-white/5 border border-white/8 mb-6">
       {[
-        { label: "Scans Today", value: count, icon: "🔍" },
-        { label: "CO₂ Saved", value: `${(count * 0.3).toFixed(1)}kg`, icon: "🌿" },
-        { label: "Streak", value: `${Math.min(count, 7)}d`, icon: "🔥" },
+        { label: "Scans Today", value: displayCount, icon: "🔍" },
+        { label: "CO₂ Saved", value: displayCo2, icon: "🌿" },
+        { label: "Streak", value: displayStreak, icon: "🔥" },
       ].map((s, i) => (
         <div key={i} className="text-center flex-1">
           <p className="text-lg">{s.icon}</p>
@@ -661,8 +550,8 @@ export default function App() {
   const [page, setPage] = useState("home"); // home | result | learn | resources
   const [result, setResult] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [scanCount, setScanCount] = useState(3);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [_analyzing, setAnalyzing] = useState(false);
+  const { stats, recordScan } = useEcoStats();
 
   const handleAnalyzing = (url) => {
     setPreview(url);
@@ -673,7 +562,7 @@ export default function App() {
     setResult(res);
     setPreview(url);
     setAnalyzing(false);
-    setScanCount(c => c + 1);
+    recordScan(res, url);
     setPage("result");
   };
 
@@ -741,7 +630,7 @@ export default function App() {
                 </p>
               </div>
 
-              <StatsBar count={scanCount} />
+              <StatsBar stats={stats} count={stats.todayScans} />
 
               {/* Upload area */}
               <div className="mb-6">

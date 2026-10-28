@@ -1,0 +1,90 @@
+{
+  "id": "pizza_box",
+  "title": "Pizza Box",
+  "tmClass": "Pizza Box",
+  "parts": [
+    {
+      "id": "box",
+      "name": "Corrugated Cardboard Box",
+      "material": "Kraft Paper Pulp"
+    },
+    {
+      "id": "grease",
+      "name": "Food Oil & Cheese Grease",
+      "material": "Organic Lipids"
+    }
+  ],
+  "initialParts": {
+    "box": "whole",
+    "grease": "present"
+  },
+  "actions": [
+    {
+      "id": "tear_clean_part",
+      "label": "Tear Clean Lid From Greasy Base",
+      "targetPart": "box",
+      "requires": {
+        "box": "whole"
+      },
+      "set": {
+        "box": "split"
+      },
+      "feedback": "Clean lid separated from greasy base. The clean cardboard lid can be recycled in paper streams, while the grease-soaked base is prevented from ruining the pulper.",
+      "required": true,
+      "informational": false
+    }
+  ],
+  "outcomes": [
+    {
+      "bin": "recycling",
+      "when": {
+        "box": "split"
+      },
+      "result": "accepted",
+      "title": "Clean Cardboard Accepted",
+      "text": "The clean, dry cardboard lid is accepted in the Paper Recycling Bin. The greasy bottom should be placed in the organic compost bin (if accepted locally) or general trash per app guidance.",
+      "takeaway": "Always tear off clean, grease-free sections of pizza boxes for paper recycling."
+    },
+    {
+      "bin": "recycling",
+      "when": {
+        "box": "whole"
+      },
+      "result": "contaminated",
+      "title": "Paper Pulp Contaminated by Grease",
+      "text": "Grease and food oils do not dissolve during water-based paper pulping. Oil binds to paper fibers, forming holes and weak spots that ruin entire batches of recycled paper.",
+      "takeaway": "Never place whole greasy pizza boxes into paper recycling."
+    },
+    {
+      "bin": "compost",
+      "when": {
+        "box": "whole"
+      },
+      "result": "accepted",
+      "title": "Food-Soiled Cardboard Composting",
+      "text": "Greasy or food-soiled paper is handled differently in different areas. Check your local guidance.",
+      "takeaway": "Greasy or food-soiled paper is handled differently in different areas. Check your local guidance.",
+      "needsFactCheck": true
+    },
+    {
+      "bin": "compost",
+      "when": {
+        "box": "split"
+      },
+      "result": "accepted",
+      "title": "Greasy Base Composted",
+      "text": "The clean cardboard lid can be recycled in paper streams. Greasy or food-soiled paper is handled differently in different areas. Check your local guidance.",
+      "takeaway": "Greasy or food-soiled paper is handled differently in different areas. Check your local guidance.",
+      "needsFactCheck": true
+    },
+    {
+      "bin": "general",
+      "when": null,
+      "result": "wasted",
+      "title": "Recyclable Fiber Landfilled",
+      "text": "Landfilling the whole pizza box wastes valuable clean cardboard fibers that could easily have been torn off and recycled.",
+      "takeaway": "Tear the clean top lid off to recycle it, rather than binning the whole box."
+    }
+  ],
+  "guidanceNote": "Consistent with app guidance: Greasy pizza boxes contaminate paper pulp and must be composted or binned; clean cardboard can be recycled."
+}

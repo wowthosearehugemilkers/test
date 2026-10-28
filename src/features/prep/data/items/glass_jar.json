@@ -1,0 +1,96 @@
+{
+  "id": "glass_jar",
+  "title": "Glass Jar",
+  "tmClass": "Glass Jar",
+  "parts": [
+    {
+      "id": "body",
+      "name": "Jar Body",
+      "material": "Container Glass (Flint/Clear)"
+    },
+    {
+      "id": "lid",
+      "name": "Metal Lid",
+      "material": "Steel / Tinplate"
+    },
+    {
+      "id": "contents",
+      "name": "Food Residue",
+      "material": "Organic Food Residue"
+    }
+  ],
+  "initialParts": {
+    "body": "intact",
+    "lid": "attached",
+    "contents": "residue"
+  },
+  "actions": [
+    {
+      "id": "rinse_empty",
+      "label": "Rinse & Empty Jar",
+      "targetPart": "contents",
+      "requires": {
+        "contents": "residue"
+      },
+      "set": {
+        "contents": "empty"
+      },
+      "feedback": "Jar rinsed and emptied. Eliminates sticky food and sauce residue that rots and fouls cullet washing plants.",
+      "required": true,
+      "informational": false
+    },
+    {
+      "id": "remove_lid",
+      "label": "Remove Metal Lid",
+      "targetPart": "lid",
+      "requires": {
+        "lid": "attached"
+      },
+      "set": {
+        "lid": "removed"
+      },
+      "feedback": "Metal lid separated. Note: Rules differ by area—some facilities ask you to separate metal lids so they can be captured by overhead magnets, while other programs ask you to keep lids off.",
+      "required": false,
+      "informational": true
+    }
+  ],
+  "outcomes": [
+    {
+      "bin": "recycling",
+      "when": {
+        "contents": "empty"
+      },
+      "result": "accepted",
+      "title": "Glass Recycling Accepted",
+      "text": "Clean, empty glass jars are accepted in the Cyan Glass Recycling Bin and can be remelted infinitely without loss of quality.",
+      "takeaway": "Glass is 100% circular—recycling saves 30% furnace energy compared to virgin raw materials."
+    },
+    {
+      "bin": "recycling",
+      "when": {
+        "contents": "residue"
+      },
+      "result": "contaminated",
+      "title": "Glass Stream Contaminated",
+      "text": "Unrinsed food remnants rot during transit and attract vermin at cullet processing yards.",
+      "takeaway": "Always rinse food containers before placing them in the recycling bin."
+    },
+    {
+      "bin": "general",
+      "when": null,
+      "result": "wasted",
+      "title": "Infinite Resource Landfilled",
+      "text": "Glass takes over 1 million years to decompose in a landfill, permanently locking away an infinitely recyclable resource.",
+      "takeaway": "Place clean glass in the designated Cyan Glass Recycling Bin or local drop-off center."
+    },
+    {
+      "bin": "compost",
+      "when": null,
+      "result": "wasted",
+      "title": "Dangerous Hazard in Compost",
+      "text": "Glass does not decompose in organic compost and poses serious laceration hazards to compost processors and soil health.",
+      "takeaway": "Never place glass jars or bottles into organic compost bins."
+    }
+  ],
+  "guidanceNote": "Consistent with app guidance: Place in Cyan Glass Recycling Bin; rinse clean. Lid action is informational and never penalized."
+}
