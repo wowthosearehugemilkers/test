@@ -194,9 +194,10 @@ export function useLiveClassifier({ enabled = true } = {}) {
     }
   }, [source, mockClass, labels, gate]);
 
-  // Start/stop interval based on enabled flag
+  // Start/stop interval based on enabled flag or mock mode
   useEffect(() => {
-    if (!enabled) {
+    const isRunning = enabled || source === "mock";
+    if (!isRunning) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
@@ -205,7 +206,7 @@ export function useLiveClassifier({ enabled = true } = {}) {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [enabled, runPrediction]);
+  }, [enabled, source, runPrediction]);
 
   // Reset gate when source or mock class changes
   useEffect(() => {

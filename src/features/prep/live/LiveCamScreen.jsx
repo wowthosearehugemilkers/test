@@ -28,7 +28,7 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     itemInfo,
     isModelLoading,
     modelError
-  } = useLiveClassifier({ enabled: cameraActive || hasFallbackImage || source === "mock" });
+  } = useLiveClassifier({ enabled: cameraActive || hasFallbackImage });
 
   // ─── CAMERA LIFECYCLE ─────────────────────────────────────────────
   const startCamera = useCallback(async () => {
