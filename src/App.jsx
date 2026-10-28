@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { WASTE_CATEGORIES as WASTE_DATA } from "./data/wasteCategories.js";
 import { normalizeClassifierResult } from "./services/classifierAdapter.js";
 import { useEcoStats } from "./hooks/useEcoStats.js";
+import PrepPage from "./features/prep/PrepPage.jsx";
 
 async function compressImage(file, maxSizeKB = 800) {
   return new Promise((resolve) => {
@@ -673,6 +674,10 @@ export default function App() {
           {page === "resources" && (
             <ResourcesPage onBack={() => setPage(result ? "result" : "home")} />
           )}
+
+          {page === "prep" && (
+            <PrepPage onBack={() => setPage("home")} />
+          )}
         </main>
 
         {/* Bottom nav */}
@@ -680,6 +685,7 @@ export default function App() {
           <div className="flex gap-2 bg-white/5 border border-white/10 rounded-2xl p-1.5">
             {[
               { id: "home", icon: "🏠", label: "Home" },
+              { id: "prep", icon: "🧼", label: "Prep Lab" },
               { id: "resources", icon: "📚", label: "Resources" },
             ].map(tab => (
               <button

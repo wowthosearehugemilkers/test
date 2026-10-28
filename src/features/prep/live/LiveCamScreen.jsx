@@ -1,0 +1,356 @@
+/**
+ * EcoScanAI - LiveCamScreen Component
+ * 
+ * Full-screen camera interface featuring real-time Teachable Machine classification,
+ * zero-flicker HUD overlay with corner brackets, verified carbon emission estimates,
+ * disposal guidance, safe-area padding, and direct "Prep It" interactive routing.
+ */
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useLiveClassifier } from "../hooks/useLiveClassifier.js";
+
+export default function LiveCamScreen({ onClose, onOpenPrep }) {
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [hasFallbackImage, setHasFallbackImage] = useState(false);
+  const streamRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const {
+    videoRef,
+    source,
+    setSource,
+    mockClass,
+    setMockClass,
+    availableMockClasses,
+    gateResult,
+    itemInfo,
+    isModelLoading
+  } = useLiveClassifier({ enabled: cameraActive || hasFallbackImage || source === "mock" });
+
+  // ─── CAMERA LIFECYCLE ─────────────────────────────────────────────
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(() => {});
+          setCameraActive(true);
+        };
+      }
+    } catch (err) {
+      console.warn("[LiveCam] Camera access error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setCameraError("Camera permission was denied. Please enable camera access in your browser settings.");
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setCameraError("No camera found on this device. You can test with Mock Mode or upload an image.");
+      } else {
+        setCameraError(`Unable to start camera: ${err.message || "Unknown error"}.`);
+      }
+      setCameraActive(false);
+    }
+  }, [videoRef]);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  // Mount/unmount & visibility change handler (pauses camera when tab is backgrounded)
+  useEffect(() => {
+    startCamera();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        stopCamera();
+      } else if (document.visibilityState === "visible") {
+        startCamera();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopCamera();
+    };
+  }, [startCamera, stopCamera]);
+
+  // Handle image upload fallback
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      // Draw to a hidden canvas and assign to video element
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      if (videoRef.current) {
+        // Create synthetic video stream from canvas
+        const canvasStream = canvas.captureStream();
+        videoRef.current.srcObject = canvasStream;
+        videoRef.current.play().catch(() => {});
+        setHasFallbackImage(true);
+        setCameraActive(true);
+      }
+    };
+  };
+
+  const isLocked = gateResult.status === "locked" && itemInfo;
+  const isUncertain = gateResult.status === "uncertain";
+  const confidencePercent = Math.round((gateResult.confidence || 0) * 100);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black flex flex-col overflow-hidden select-none">
+      {/* ─── FULL-SCREEN VIDEO FEED ──────────────────────────────────── */}
+      <div className="relative flex-1 w-full h-full overflow-hidden bg-black flex items-center justify-center">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className="w-full h-full object-cover"
+        />
+
+        {/* Camera Permission / Error Banner */}
+        {cameraError && (
+          <div className="absolute inset-0 bg-black/90 p-6 flex flex-col items-center justify-center text-center z-40 max-w-sm mx-auto">
+            <span className="text-4xl mb-3">📷</span>
+            <h3 className="text-white text-lg font-bold mb-2">Camera Unavailable</h3>
+            <p className="text-white/60 text-xs mb-6 leading-relaxed">{cameraError}</p>
+            <div className="flex flex-col gap-2 w-full">
+              <button
+                type="button"
+                onClick={() => setSource("mock")}
+                className="w-full py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
+              >
+                Switch to Mock Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium"
+              >
+                Upload Test Image
+              </button>
+              <button
+                type="button"
+                onClick={startCamera}
+                className="w-full py-2.5 rounded-xl border border-white/10 text-white/50 text-xs"
+              >
+                Retry Camera
+              </button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </div>
+        )}
+
+        {/* ─── SCANNER TARGET BRACKETS ───────────────────────────────── */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="relative w-64 h-64 sm:w-72 sm:h-72">
+            {/* 4 Corner brackets */}
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-emerald-400 rounded-tl-sm" />
+            <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-emerald-400 rounded-tr-sm" />
+            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-emerald-400 rounded-bl-sm" />
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-emerald-400 rounded-br-sm" />
+
+            {/* Subtle animated scanning beam */}
+            {cameraActive && (
+              <div
+                className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
+                style={{ animation: "scan 2.2s ease-in-out infinite" }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ─── HUD OVERLAY WITH SAFE-AREA PADDING ─────────────────────── */}
+        <div
+          className="absolute inset-0 flex flex-col justify-between pointer-events-none z-30"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+            paddingLeft: "16px",
+            paddingRight: "16px"
+          }}
+        >
+          {/* Top Controls Bar */}
+          <div className="flex items-center justify-between pointer-events-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/15 text-white/80 hover:text-white text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all"
+            >
+              <span>✕</span> Close
+            </button>
+
+            {/* Mock Mode Selector */}
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-xl">
+              <span className="text-white/40 text-[10px] font-semibold uppercase">Mode:</span>
+              <select
+                value={source === "mock" ? mockClass : "tm"}
+                onChange={(e) => {
+                  if (e.target.value === "tm") {
+                    setSource("tm");
+                  } else {
+                    setSource("mock");
+                    setMockClass(e.target.value);
+                  }
+                }}
+                className="bg-transparent text-emerald-300 text-xs font-bold outline-none cursor-pointer"
+              >
+                <option value="tm" className="bg-neutral-900 text-white">Live AI Model</option>
+                <optgroup label="Simulated Classes" className="bg-neutral-900 text-white/70">
+                  {availableMockClasses.map((cls) => (
+                    <option key={cls} value={cls} className="bg-neutral-900 text-white">
+                      Mock: {cls}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          {/* Top Center: Item Name & Confidence Bar */}
+          <div className="w-full flex flex-col items-center pointer-events-none mt-2">
+            {isModelLoading ? (
+              <div className="px-4 py-2 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-emerald-300 text-xs font-medium flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                <span>Loading Vision Model...</span>
+              </div>
+            ) : isLocked ? (
+              <div className="w-full max-w-xs px-4 py-3 rounded-2xl bg-black/75 backdrop-blur-md border border-emerald-500/40 shadow-xl shadow-emerald-500/10 flex flex-col items-center animate-fadeIn">
+                <span className="text-white font-bold text-base tracking-tight text-center">
+                  {itemInfo.displayName}
+                </span>
+
+                {/* Confidence Bar */}
+                <div className="w-full mt-2 flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400 rounded-full transition-all duration-300 shadow-sm shadow-emerald-400/50"
+                      style={{ width: `${confidencePercent}%` }}
+                    />
+                  </div>
+                  <span className="text-emerald-300 text-xs font-bold tabular-nums">
+                    {confidencePercent}%
+                  </span>
+                </div>
+              </div>
+            ) : isUncertain ? (
+              <div className="px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-amber-500/30 text-amber-300 text-xs font-medium flex items-center gap-1.5 animate-fadeIn">
+                <span>⚠️</span>
+                <span>Not sure, move closer or change angle</span>
+              </div>
+            ) : (
+              <div className="px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-white/70 text-xs font-medium flex items-center gap-1.5 animate-fadeIn">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Show me an item</span>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Area: Action Button + Info Cards */}
+          <div className="w-full flex flex-col gap-2.5 pointer-events-auto">
+            {/* "Prep It" Button (Shown ONLY when class maps to a prep item) */}
+            {isLocked && itemInfo?.canPrep && (
+              <button
+                type="button"
+                onClick={() => {
+                  stopCamera();
+                  onOpenPrep(itemInfo.itemId);
+                }}
+                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-500/90 hover:bg-emerald-400 active:scale-95 text-black font-extrabold text-sm tracking-wide shadow-2xl shadow-emerald-500/40 flex items-center justify-center gap-2 transition-all"
+              >
+                <span>🧼</span>
+                <span>Prep This {itemInfo.displayName.split(" ")[0]} Now ➔</span>
+              </button>
+            )}
+
+            {/* Bottom Cards: Carbon Emission & Dispose In */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Bottom Left Card: Carbon Emission */}
+              <div className="p-3 rounded-2xl bg-black/75 backdrop-blur-md border border-white/15 text-left flex flex-col justify-between">
+                <div>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">
+                    Carbon emission
+                  </p>
+                  <p className="text-white/60 text-[10px] mt-0.5">
+                    Est. CO2 saved if recycled:
+                  </p>
+                </div>
+                <div className="mt-2">
+                  <p className="text-emerald-300 font-extrabold text-sm leading-tight">
+                    {isLocked ? itemInfo.carbonText : "Point at item"}
+                  </p>
+                  <p className="text-white/30 text-[9px] mt-0.5">
+                    {isLocked && itemInfo.hasNumericEstimate ? "(Estimate)" : ""}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bottom Right Card: Dispose In */}
+              <div className="p-3 rounded-2xl bg-black/75 backdrop-blur-md border border-white/15 text-left flex flex-col justify-between">
+                <div>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">
+                    Dispose in
+                  </p>
+                  <div className="mt-1">
+                    {isLocked ? (
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 inline-block">
+                        {itemInfo.binColor} Bin
+                      </span>
+                    ) : (
+                      <span className="text-white/30 text-[11px]">Awaiting scan</span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-white/60 text-[10px] mt-1.5 leading-snug line-clamp-2">
+                  {isLocked ? itemInfo.tip : "Position within brackets"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes scan {
+          0%, 100% { top: 5%; }
+          50% { top: 92%; }
+        }
+      `}</style>
+    </div>
+  );
+}
