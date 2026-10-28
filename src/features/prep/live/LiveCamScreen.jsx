@@ -11,7 +11,6 @@ import { useLiveClassifier } from "../hooks/useLiveClassifier.js";
 
 export default function LiveCamScreen({ onClose, onOpenPrep }) {
   const [cameraActive, setCameraActive] = useState(false);
-  const [cameraStarted, setCameraStarted] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [hasFallbackImage, setHasFallbackImage] = useState(false);
   const streamRef = useRef(null);
@@ -36,33 +35,44 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API not accessible in this browser (requires HTTPS).");
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        video: { facingMode: { ideal: "environment" } },
         audio: false
       });
 
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.setAttribute("playsinline", "true");
-        videoRef.current.setAttribute("webkit-playsinline", "true");
-        videoRef.current.muted = true;
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(() => {});
+      const video = videoRef.current;
+      if (video) {
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("webkit-playsinline", "true");
+        video.muted = true;
+        video.srcObject = stream;
+
+        // Try direct playback immediately
+        try {
+          await video.play();
           setCameraActive(true);
-        };
+        } catch (playErr) {
+          console.warn("[LiveCam] Direct video.play() failed:", playErr);
+        }
+
+        // Additional listener safety for mobile browsers
+        video.onloadeddata = () => setCameraActive(true);
+        video.onplaying = () => setCameraActive(true);
+        video.oncanplay = () => setCameraActive(true);
       }
     } catch (err) {
       console.warn("[LiveCam] Camera access error:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        setCameraError("Camera permission was denied. Please enable camera access in your browser settings.");
+        setCameraError("Camera permission was denied. Please allow camera access in browser settings.");
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
         setCameraError("No camera found on this device. You can test with Mock Mode or upload an image.");
       } else {
@@ -72,11 +82,6 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     }
   }, [videoRef]);
 
-  const handleUserStartCamera = useCallback(() => {
-    setCameraStarted(true);
-    startCamera();
-  }, [startCamera]);
-
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -85,11 +90,15 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
     setCameraActive(false);
   }, []);
 
-  // Handle visibility changes and stop camera on unmount
+  // Mount/unmount & visibility change handler: auto-starts on mount, stops when hidden
   useEffect(() => {
+    startCamera();
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         stopCamera();
+      } else if (document.visibilityState === "visible") {
+        startCamera();
       }
     };
 
@@ -99,7 +108,7 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopCamera();
     };
-  }, [stopCamera]);
+  }, [startCamera, stopCamera]);
 
   // Handle image upload fallback
   const handleFileUpload = (e) => {
@@ -143,25 +152,25 @@ export default function LiveCamScreen({ onClose, onOpenPrep }) {
           className="w-full h-full object-cover"
         />
 
-        {/* User Tap Prompt to Start Camera (required for iOS Safari policy) */}
-        {!cameraStarted && source !== "mock" && !hasFallbackImage && !cameraError && (
+        {/* Initial Camera Connect Indicator & Manual Tap Fallback */}
+        {!cameraActive && source !== "mock" && !hasFallbackImage && !cameraError && (
           <div
-            onClick={handleUserStartCamera}
-            className="absolute inset-0 z-40 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none"
+            onClick={startCamera}
+            className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none"
           >
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-3xl mb-4 animate-pulse">
+            <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-2xl mb-4 animate-pulse">
               📷
             </div>
-            <h3 className="text-white text-lg font-bold mb-1">Live Camera Ready</h3>
-            <p className="text-white/60 text-xs max-w-xs mb-6 leading-relaxed">
-              Tap anywhere or click below to enable camera access for real-time item detection.
+            <h3 className="text-white text-base font-bold mb-1">Starting Camera...</h3>
+            <p className="text-white/60 text-xs max-w-xs mb-4 leading-relaxed">
+              If camera feed does not appear automatically, tap below to grant access.
             </p>
             <button
               type="button"
-              onClick={handleUserStartCamera}
-              className="py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center gap-2"
+              onClick={startCamera}
+              className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-xs shadow-lg active:scale-95 transition-all"
             >
-              <span>▶</span> Enable Camera
+              Enable Camera Feed
             </button>
           </div>
         )}

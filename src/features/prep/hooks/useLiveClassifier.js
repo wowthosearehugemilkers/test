@@ -24,7 +24,7 @@ export function useLiveClassifier({ enabled = true } = {}) {
   const [mockClass, setMockClass] = useState("Plastic");
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [modelError, setModelError] = useState(null);
-  const [labels, setLabels] = useState([]);
+  const [labels, setLabels] = useState(() => Object.keys(LIVE_CLASS_CONFIG));
   const [gateResult, setGateResult] = useState({
     status: "idle",
     confirmedClass: null,
@@ -34,6 +34,8 @@ export function useLiveClassifier({ enabled = true } = {}) {
 
   const videoRef = useRef(null);
   const modelRef = useRef(null);
+  const tfRef = useRef(null);
+  const labelsRef = useRef(Object.keys(LIVE_CLASS_CONFIG));
   const isPredictingRef = useRef(false);
   const intervalRef = useRef(null);
 
@@ -42,7 +44,6 @@ export function useLiveClassifier({ enabled = true } = {}) {
 
   // ─── 1. LAZY LOAD TENSORFLOW.JS & MODEL ───────────────────────────
   useEffect(() => {
-    if (!enabled) return;
     if (source !== "tm") return;
 
     let isCancelled = false;
@@ -52,15 +53,42 @@ export function useLiveClassifier({ enabled = true } = {}) {
       setModelError(null);
 
       try {
-        // Fetch metadata.json for labels
-        const metaResp = await fetch("/tm-model/metadata.json");
-        if (!metaResp.ok) throw new Error("Failed to load /tm-model/metadata.json");
-        const metadata = await metaResp.json();
-        const loadedLabels = metadata.labels || [];
+        // Fetch metadata.json for labels with fallback to canonical config
+        let loadedLabels = Object.keys(LIVE_CLASS_CONFIG);
+        try {
+          const metaResp = await fetch("/tm-model/metadata.json");
+          if (metaResp.ok) {
+            const metadata = await metaResp.json();
+            if (Array.isArray(metadata.labels) && metadata.labels.length > 0) {
+              loadedLabels = metadata.labels;
+            }
+          }
+        } catch (metaErr) {
+          console.warn("[LiveClassifier] Using default labels fallback:", metaErr);
+        }
+
+        labelsRef.current = loadedLabels;
         if (!isCancelled) setLabels(loadedLabels);
 
         // Dynamically import @tensorflow/tfjs so initial bundle is not burdened
         const tf = await import("@tensorflow/tfjs");
+        tfRef.current = tf;
+
+        // Ensure safe backend for mobile Safari WebGL / WebGPU
+        try {
+          if (tf.getBackend() !== "webgl") {
+            await tf.setBackend("webgl");
+          }
+        } catch (e) {
+          console.warn("[LiveClassifier] WebGL setBackend fallback:", e);
+        }
+
+        try {
+          tf.env().set("WEBGPU_IMPORT_EXTERNAL_TEXTURE", false);
+        } catch {
+          // ignore
+        }
+
         await tf.ready();
 
         // Load Teachable Machine layers model
@@ -73,7 +101,7 @@ export function useLiveClassifier({ enabled = true } = {}) {
       } catch (err) {
         console.warn("[LiveClassifier] Failed to load TM model, falling back to mock mode:", err);
         if (!isCancelled) {
-          setModelError(err.message);
+          setModelError(err.message || "Model load failed");
           setIsModelLoading(false);
           setSource("mock");
         }
@@ -93,7 +121,7 @@ export function useLiveClassifier({ enabled = true } = {}) {
         }
       }
     };
-  }, [source, enabled]);
+  }, [source]);
 
   // ─── 2. INFERENCE LOOP (cadence ~250ms with frame-skipping) ───────
   const runPrediction = useCallback(async () => {
@@ -108,19 +136,26 @@ export function useLiveClassifier({ enabled = true } = {}) {
       return;
     }
 
-    // TM mode: verify video is ready and inference is not busy
+    // TM mode: verify video is ready, dimensions exist, and inference is not busy
     const video = videoRef.current;
     const model = modelRef.current;
+    const tf = tfRef.current;
 
-    if (!video || !model || isPredictingRef.current || video.readyState < 2) {
+    if (
+      !video ||
+      !model ||
+      !tf ||
+      isPredictingRef.current ||
+      video.readyState < 2 ||
+      !video.videoWidth ||
+      !video.videoHeight
+    ) {
       return;
     }
 
     isPredictingRef.current = true;
 
     try {
-      const tf = await import("@tensorflow/tfjs");
-
       // Center-crop video frame to square, resize to 224x224, normalize to [-1, 1], expand dims
       const tensor = tf.tidy(() => {
         const pixels = tf.browser.fromPixels(video);
@@ -142,8 +177,9 @@ export function useLiveClassifier({ enabled = true } = {}) {
       tensor.dispose();
       prediction.dispose();
 
-      // Map probabilities to label names
-      const predictions = labels.map((labelName, i) => ({
+      // Map probabilities to label names using ref to avoid stale closures
+      const currentLabels = labelsRef.current.length > 0 ? labelsRef.current : labels;
+      const predictions = currentLabels.map((labelName, i) => ({
         className: labelName,
         probability: probabilities[i] || 0
       }));
